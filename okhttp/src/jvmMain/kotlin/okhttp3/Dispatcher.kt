@@ -18,7 +18,6 @@ package okhttp3
 import java.util.ArrayDeque
 import java.util.Collections
 import java.util.Deque
-import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -100,13 +99,13 @@ class Dispatcher() {
     }
 
   /**
-   * Orders calls by order of execution. When two calls have equal priority order they are executed
+   * A function that determines the priority of a call. When two calls have equal priority order they are executed
    * in the order that they were enqueued in.
    */
   @get:Synchronized
   @set:Synchronized
   @get:JvmName("priorityOrder")
-  var priorityOrder: Comparator<Call>? = null
+  var callPriority: ((Call) -> Float)? = null
 
   /** Ready async calls in the order they'll be run. */
   private val readyAsyncCalls = mutableListOf<AsyncCall>()
@@ -174,8 +173,8 @@ class Dispatcher() {
     val executableCalls = mutableListOf<AsyncCall>()
     val isRunning: Boolean
     synchronized(this) {
-      priorityOrder?.let { comparator ->
-        readyAsyncCalls.sortWith { a, b -> comparator.compare(a.call, b.call) }
+      callPriority?.let { callPriority ->
+        readyAsyncCalls.sortBy { callPriority(it.call) }
       }
 
       val i = readyAsyncCalls.iterator()

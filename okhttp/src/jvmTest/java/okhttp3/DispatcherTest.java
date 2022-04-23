@@ -2,7 +2,6 @@ package okhttp3;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +12,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
+
+import kotlin.jvm.functions.Function1;
 
 @Tag("Slowish")
 public final class DispatcherTest {
@@ -44,17 +45,18 @@ public final class DispatcherTest {
     }
   }
 
-  final Comparator<Call> priorityOrder = (c1, c2) -> {
-    Object t1 = c1.request().tag();
-    Object t2 = c2.request().tag();
+  final Function1<Call, Float> callPriority = (call) -> {
+    Object tag = call.request().tag();
 
-    float p1 = 0;
-    if (t1 instanceof Priority) p1 = ((Priority) t1).priority;
+    float priority;
 
-    float p2 = 0;
-    if (t2 instanceof Priority) p2 = ((Priority) t2).priority;
+    if (tag instanceof Priority) {
+      priority = ((Priority) tag).priority;
+    } else {
+      priority = new Priority().priority;
+    }
 
-    return Float.compare(p2, p1);
+    return -priority;
   };
 
   @BeforeEach public void setUp() throws Exception {
@@ -343,7 +345,7 @@ public final class DispatcherTest {
 
   @Test public void priorityAsyncCallDispatcher() throws Exception {
     dispatcher.setMaxRequests(3);
-    dispatcher.setPriorityOrder(priorityOrder);
+    dispatcher.setCallPriority(callPriority);
 
     client.newCall(newRequest("http://a/1")).enqueue(callback);
     client.newCall(newRequest("http://a/2")).enqueue(callback);
@@ -378,7 +380,7 @@ public final class DispatcherTest {
   @Test public void priorityAsyncCallDispatcherWithMaxRequestsPerHost() {
     dispatcher.setMaxRequests(3);
     dispatcher.setMaxRequestsPerHost(2);
-    dispatcher.setPriorityOrder(priorityOrder);
+    dispatcher.setCallPriority(callPriority);
 
     client.newCall(newRequest("http://a/1")).enqueue(callback);
     client.newCall(newRequest("http://a/2")).enqueue(callback);
