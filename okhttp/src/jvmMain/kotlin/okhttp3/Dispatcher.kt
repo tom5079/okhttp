@@ -174,18 +174,20 @@ class Dispatcher() {
     val executableCalls = mutableListOf<AsyncCall>()
     val isRunning: Boolean
     synchronized(this) {
-      priorityOrder?.let { comparator ->
-        readyAsyncCalls.sortWith { a, b -> comparator.compare(a.call, b.call) }
-      }
+      val sorted = priorityOrder?.let { comparator ->
+        readyAsyncCalls.sortedWith { a, b -> comparator.compare(a.call, b.call) }
+      } ?: readyAsyncCalls.toList()
 
-      val i = readyAsyncCalls.iterator()
-      while (i.hasNext()) {
-        val asyncCall = i.next()
+      readyAsyncCalls.clear()
+      for (asyncCall in sorted) {
+        if (
+          runningAsyncCalls.size >= this.maxRequests || // Max capacity.
+          asyncCall.callsPerHost.get() >= this.maxRequestsPerHost // Host max capacity.
+        ) {
+          readyAsyncCalls.add(asyncCall)
+          continue
+        }
 
-        if (runningAsyncCalls.size >= this.maxRequests) break // Max capacity.
-        if (asyncCall.callsPerHost.get() >= this.maxRequestsPerHost) continue // Host max capacity.
-
-        i.remove()
         asyncCall.callsPerHost.incrementAndGet()
         executableCalls.add(asyncCall)
         runningAsyncCalls.add(asyncCall)
